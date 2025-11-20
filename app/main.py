@@ -72,10 +72,13 @@ def render_post(request: RenderRequest):
             raise HTTPException(status_code=400, detail="Failed to generate file")
             
     except SyntaxError as e:
+        logger.error(f"Syntax error in code: {str(e)}")
         raise HTTPException(status_code=400, detail=f"Syntax error in code: {str(e)}")
     except NameError as e:
+        logger.error(f"Name error in code: {str(e)}")
         raise HTTPException(status_code=400, detail=f"Name error in code: {str(e)}")
     except Exception as e:
         # Log the full traceback for debugging
         error_details = f"Execution error: {str(e)}\n{traceback.format_exc()}"
+        logger.error(error_details)
         raise HTTPException(status_code=500, detail=error_details)
