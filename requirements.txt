@@ -1,2 +1,4 @@
 fastapi[standard]>=0.121.3,<0.122.0
 pydantic>=2.7.0,<3.0.0
+cadquery-ocp>=7.8.1.1,<7.9
+build123d>=0.10.0
