@@ -1,11 +1,16 @@
 from typing import Union
 import os
 import traceback
+import logging
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from build123d import *
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 app = FastAPI()
 
@@ -45,7 +50,7 @@ with BuildPart() as box_builder:
 def render_post(request: RenderRequest):
     try:
         # Execute the provided code
-        print(f"Executing code: {request.code}")
+        logger.info(f"Executing code: {request.code}")
         exec(request.code)
         
         # Check if the specified file exists
