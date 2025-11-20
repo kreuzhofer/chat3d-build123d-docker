@@ -1,6 +1,9 @@
 from typing import Union
+import os
 
 from fastapi import FastAPI
+from fastapi.responses import FileResponse
+from build123d import *
 
 app = FastAPI()
 
@@ -11,3 +14,17 @@ def read_root():
 @app.get("/items/{item_id}")
 def read_item(item_id: int, q: Union[str, None] = None):
     return {"item_id": item_id, "q": q}
+
+@app.get("/render/")
+def render():
+    try:
+        with BuildPart() as box_builder:
+            Box(10, 10, 10)
+            export_step(box_builder.part, "box.step")
+        
+        if os.path.exists("box.step"):
+            return FileResponse("box.step", media_type="application/octet-stream", filename="box.step")
+        else:
+            return {"status": "error", "message": "Failed to generate file"}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
