@@ -8,8 +8,6 @@ services:
     pull_policy: build
     ports:
       - "30222:80"
-    volumes:
-      - ./app:/code/app
     environment:
       - PYTHONUNBUFFERED=1
     restart: always
