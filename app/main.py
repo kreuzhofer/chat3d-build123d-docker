@@ -45,6 +45,7 @@ with BuildPart() as box_builder:
 def render_post(request: RenderRequest):
     try:
         # Execute the provided code
+        print(f"Executing code: {request.code}")
         exec(request.code)
         
         # Check if the specified file exists
