@@ -6,7 +6,6 @@ import logging
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
-from build123d import *
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -31,6 +30,7 @@ def render():
     try:
         # Code block to execute as eval from string
         code_to_execute = """
+from build123d import *
 with BuildPart() as box_builder:
     Box(10, 10, 10)
     export_step(box_builder.part, "box.step")
@@ -49,6 +49,7 @@ with BuildPart() as box_builder:
 @app.post("/render/")
 def render_post(request: RenderRequest):
     try:
+        logger.info("Starting render_post for file: {request.filename}")
         # Execute the provided code
         logger.info(f"Executing code: {request.code}")
         exec(request.code)
