@@ -1,10 +1,12 @@
-from typing import Union
+from typing import Union, List
 import os
 import traceback
 import logging
+import base64
+import glob
 
-from fastapi import FastAPI, HTTPException
-from fastapi.responses import FileResponse
+from fastapi import FastAPI, HTTPException, status
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 # Configure logging
@@ -16,6 +18,15 @@ app = FastAPI()
 class RenderRequest(BaseModel):
     code: str
     filename: str = "output.step"
+
+class FileData(BaseModel):
+    filename: str
+    content: str  # base64 encoded binary content
+
+class RenderResponse(BaseModel):
+    success: bool
+    files: List[FileData] = []
+    message: str = ""
 
 @app.get("/")
 def read_root():
@@ -39,47 +50,123 @@ with BuildPart() as box_builder:
         # Execute the code block
         exec(code_to_execute)
         
-        if os.path.exists("box.step"):
-            return FileResponse("box.step", media_type="application/octet-stream", filename="box.step")
-        else:
-            return {"status": "error", "message": "Failed to generate file"}
+        # Find all files starting with "box" (without extension)
+        base_filename = "box"
+        pattern = f"{base_filename}*"
+        matching_files = glob.glob(pattern)
+        
+        files_data = []
+        for file_path in matching_files:
+            if os.path.isfile(file_path):
+                with open(file_path, 'rb') as f:
+                    file_content = f.read()
+                encoded_content = base64.b64encode(file_content).decode('utf-8')
+                files_data.append(FileData(
+                    filename=os.path.basename(file_path),
+                    content=encoded_content
+                ))
+                # Clean up the file after reading
+                os.remove(file_path)
+        
+        response = RenderResponse(
+            success=True,
+            files=files_data,
+            message=f"Successfully generated {len(files_data)} file(s)"
+        )
+        return JSONResponse(
+            content=response.dict(),
+            status_code=status.HTTP_200_OK
+        )
+        
     except Exception as e:
-        return {"status": "error", "message": str(e)}
+        error_details = f"Execution error: {str(e)}\n{traceback.format_exc()}"
+        logger.error(error_details)
+        response = RenderResponse(
+            success=False,
+            message=error_details
+        )
+        return JSONResponse(
+            content=response.dict(),
+            status_code=status.HTTP_202_ACCEPTED
+        )
 
 @app.post("/render/")
 def render_post(request: RenderRequest):
     try:
-        logger.info("Starting render_post for file: {request.filename}")
+        logger.info(f"Starting render_post for file: {request.filename}")
         # Execute the provided code
         logger.info(f"Executing code: {request.code}")
         exec(request.code)
         
-        # Check if the specified file exists
-        if os.path.exists(request.filename):
-            # Return the file content in the response body
-            with open(request.filename, 'rb') as f:
-                file_content = f.read()
-            
-            # Clean up the file after reading
-            os.remove(request.filename)
-            
-            from fastapi.responses import Response
-            return Response(
-                content=file_content,
-                media_type="application/octet-stream",
-                headers={"Content-Disposition": f"attachment; filename={request.filename}"}
+        # Extract base filename without extension
+        base_filename = os.path.splitext(request.filename)[0]
+        pattern = f"{base_filename}*"
+        matching_files = glob.glob(pattern)
+        
+        files_data = []
+        for file_path in matching_files:
+            if os.path.isfile(file_path):
+                with open(file_path, 'rb') as f:
+                    file_content = f.read()
+                encoded_content = base64.b64encode(file_content).decode('utf-8')
+                files_data.append(FileData(
+                    filename=os.path.basename(file_path),
+                    content=encoded_content
+                ))
+                # Clean up the file after reading
+                os.remove(file_path)
+        
+        if not files_data:
+            response = RenderResponse(
+                success=False,
+                message="No files were generated matching the specified filename pattern"
             )
-        else:
-            raise HTTPException(status_code=400, detail="Failed to generate file")
+            return JSONResponse(
+                content=response.dict(),
+                status_code=status.HTTP_202_ACCEPTED
+            )
+        
+        response = RenderResponse(
+            success=True,
+            files=files_data,
+            message=f"Successfully generated {len(files_data)} file(s)"
+        )
+        return JSONResponse(
+            content=response.dict(),
+            status_code=status.HTTP_200_OK
+        )
             
     except SyntaxError as e:
-        logger.error(f"Syntax error in code: {str(e)}")
-        raise HTTPException(status_code=400, detail=f"Syntax error in code: {str(e)}")
+        error_details = f"Syntax error in code: {str(e)}"
+        logger.error(error_details)
+        response = RenderResponse(
+            success=False,
+            message=error_details
+        )
+        return JSONResponse(
+            content=response.dict(),
+            status_code=status.HTTP_202_ACCEPTED
+        )
     except NameError as e:
-        logger.error(f"Name error in code: {str(e)}")
-        raise HTTPException(status_code=400, detail=f"Name error in code: {str(e)}")
+        error_details = f"Name error in code: {str(e)}"
+        logger.error(error_details)
+        response = RenderResponse(
+            success=False,
+            message=error_details
+        )
+        return JSONResponse(
+            content=response.dict(),
+            status_code=status.HTTP_202_ACCEPTED
+        )
     except Exception as e:
         # Log the full traceback for debugging
         error_details = f"Execution error: {str(e)}\n{traceback.format_exc()}"
         logger.error(error_details)
-        raise HTTPException(status_code=500, detail=error_details)
+        response = RenderResponse(
+            success=False,
+            message=error_details
+        )
+        return JSONResponse(
+            content=response.dict(),
+            status_code=status.HTTP_202_ACCEPTED
+        )
